@@ -1,5 +1,10 @@
 from data import dataset
 import pandas as pd
+from data import dataset
+import streamlit as st
+import collections
+from collections import Counter
+import pickle
 
 
 def database_compound_number():
@@ -54,25 +59,67 @@ def databases_target_number():
 
 # information about drug disease
 def disease_drug():
+    compound_target_dict = dataset.load_inchikey_target_dict()
     disease_drug_dict = dataset.load_disease_drug_dict()
     n = 0
     drug = []
-    for k,v in disease_drug_dict.itemvs():
+
+    for k,v in disease_drug_dict.items():
         drug += list(v.keys())
         n +=  len(v)
 
     drug_unique = set(drug)
+
+    # prepare a dictionary contain drug target
+    drug_target_dict_simple = {}
+    for d in drug_unique:
+        if compound_target_dict.get(d) != None and compound_target_dict[d].get('all_target') !=None:
+            drug_target_dict_simple [d] = compound_target_dict[d].get('all_target')
+    with open('data/resource_dict/drug_target_simple', 'wb') as handle:
+        pickle.dump(drug_target_dict_simple, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 
     print('print disease is {}, drug is {}. pairs is {}'.format(len(disease_drug_dict),
                                                                len(drug_unique),
                                                                n))
     return n
 
-def add_drug_name():
+def result_table_standrad():
     drug_annotation = pd.read_csv('data/Drug_annotation.csv')
     drug_name_dict = dict(zip(drug_annotation['standard_inchi_key'],
                               drug_annotation['drug']))
     data = pd.read_csv('data/result_pd_norm_merged_target_min.csv', index_col=0)
     data['drug name'] = data['drug'].apply(lambda x:drug_name_dict[x])
-    data.to_csv('data/result_pd_norm_merged_target_min.csv')
+
+    #
+    selected_cols = ['Disease_id', 'Disease_name',
+                     'drug', 'drug name',
+                     'similar', 'tc',
+                     'target_overlaped_rate_with_drug',
+                     'disease_distance_norm', 'total_score']
+
+    data_table = data[selected_cols]
+    data_table = data_table.rename(columns={
+        'Disease_id': 'Disease ID',
+        'Disease_name': 'Disease Name',
+        'drug': 'Drug Inchikey',
+        'drug name': 'Drug Name',
+        'similar': 'Compound',
+        'tc': 'TC',
+        'target_overlaped_rate_with_drug': 'OPTS',
+        'disease_distance_norm': 'Disease Distance'})
+    data_table.to_csv('data/result_pd.csv')
+
+
+# prepare drug target set for show the to targets
+def prepare_drug_tareget_piars(drugs, drug_target_dict):
+    drug_target_pairs = []
+    for d in drugs:
+        targets = drug_target_dict.get(d)
+        if targets != None:
+            drug_target_pairs += targets
+    common_target_count = Counter(drug_target_pairs)
+    return common_target_count
+
 

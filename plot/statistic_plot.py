@@ -10,23 +10,6 @@ from collections import Counter
 import plotly.express as px
 from plotly.offline import download_plotlyjs, init_notebook_mode, iplot
 from plotly.offline.offline import plot_mpl
-from data import dataset
-
-
-def prepare_drug_simi_tareget_piars(drugs):
-    comp_target_pairs = []
-    for i, info in drugs.items():
-        if 'simi_mol' in info and 'simi_targeted' in info['simi_mol']:
-            for i_2, t in info['simi_mol']['simi_targeted'].items():
-                targets = t['target_info']['all_target']
-                for t_2 in targets:
-                    comp_target_pairs.append(['simi', i_2, t_2])
-        if 'target_info' in info and info['target_info'] != None:
-            targets_2 = info['target_info']['all_target']
-            for t_3 in targets_2:
-                comp_target_pairs.append(['drug', i, t_3])
-    comp_target_pairs = pd.DataFrame(comp_target_pairs, columns=['source', 'inchikey', 'uniprot'])
-    return comp_target_pairs
 
 
 def plot_distri_tc(score_pd):
@@ -62,8 +45,8 @@ def plot_top_inchikey(drugs, path):
     plt.tight_layout()
 
 
-def plot_top_target(drugs):
-    comp_target_pairs = prepare_drug_simi_tareget_piars(drugs)
+def plot_top_target(comp_target_pairs):
+    #comp_target_pairs = prepare_drug_simi_tareget_piars(drugs)
 
     print('The number of unique inchikeys is {}'.format(len(comp_target_pairs['inchikey'].unique())))
     print('The number of unique uniprot is {}'.format(len(comp_target_pairs['uniprot'].unique())))
