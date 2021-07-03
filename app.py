@@ -28,12 +28,16 @@ def get_data():
 
 @st.cache
 def read_compound_target():
-    compound_target = dataset.load_drug_target()
-    return compound_target
+    drug_target = dataset.load_drug_target()
+    return drug_target
 
-compound_target_dict = read_compound_target()
+# compound_target
+drug_target_dict = read_compound_target()
 
+#the whole score result pd
 data = get_data()
+
+disease_name_id_dict = dict(zip(data['Disease Name'], data['Disease ID']))
 
 # add description for our website
 st.markdown("""
@@ -178,14 +182,17 @@ Sorted_Disease = data['Disease Name'].unique()
 # add the box for disease selection
 st.markdown("### **Select Disease:**")
 
-select_disease = []
+select_disease = st.selectbox('', Sorted_Disease)
 
-select_disease.append(st.selectbox('', Sorted_Disease))
+select_disease_id = disease_name_id_dict.get(select_disease)
+
+# first read feature vector for sleected disease for next TSNE PLOT
+feature_vector = pd.read_csv('data/result_stored/{}/feature_vector.csv'.format(select_disease_id))
 
 @st.cache
 def get_seperate_disease_data(select_disease):
     # accept the result data of selected disease
-    data_table = data[data['Disease Name'].isin(select_disease)]
+    data_table = data[data['Disease Name'].isin([select_disease])]
     return data_table
 
 
@@ -208,7 +215,7 @@ data_show = data_table[(data_table['TC']>= min_tc) &
 data_show = data_show.sort_values(by='total_score', ascending=False)
 
 # use the left drug to get all the drug relatd atrget and their frequency
-common_target_count = prepare_drug_tareget_piars(list(data_show['Drug Inchikey'].unique()), compound_target_dict)
+common_target_count = prepare_drug_tareget_piars(list(data_show['Drug Inchikey'].unique()), drug_target_dict)
 
 
 # show then selected result table on app
@@ -218,7 +225,7 @@ st.dataframe(data_show)
 st.write('')
 row_space_3, row_3, row_space_4, row_4 = st.beta_columns((.1,1, .1, 1))
 with row_3:
-
+    st.subheader('Top targets among drugs')
     # known the most frequent target among the drugs
     largest_count_target = common_target_count.most_common(1)[0][1]
     default_target_n_show = min(largest_count_target, 5)
@@ -267,6 +274,8 @@ with row_3:
 # plot top similar compounds by in total score in app
 with row_4:
 
+    st.subheader('Top repurposed compounds')
+
     # knwon the number of al selelcted similar compound
     largest_count_compound = data_show.shape[0]
 
@@ -303,7 +312,7 @@ with row_4:
                 x=total_score_s, ax=ax_4)
 
     ax_4.set_title('The most 20 frequent targets among clinical drugs', fontsize=14, fontname="Arial")
-    ax_4.set_xlabel('# of drugs', fontsize=14, fontname="Arial")
+    ax_4.set_xlabel('Repurposing score', fontsize=14, fontname="Arial")
 
     # Only show ticks on the left and bottom spines
     ax_4.spines['right'].set_visible(False)
@@ -316,24 +325,154 @@ with row_4:
 
     st.pyplot(fig_4)
 
+# plot tc density , score diatnce
+
+st.write('')
+row_space_5, row_5, row_space_6, row_6 = st.beta_columns((.1,1, .1, 1))
+with row_5:
+    st.subheader('TC density')
+    # plot the top target selected
+    fig_5, ax_5 = plt.subplots(figsize=(6, 4))
+    sns.set(font='Arial', style="white", context="paper")
+    font = FontProperties()
+    font.set_family('sans-serif')
+    font.set_name('arial')
+    matplotlib.rc('xtick', labelsize=20)
+    matplotlib.rc('ytick', labelsize=20)
+    font = {
+        'weight': 'bold',
+        'size': 14}
+
+    matplotlib.rc('font', **font)
+    matplotlib.rcParams['font.sans-serif'] = "Arial"
+    matplotlib.rcParams['font.family'] = "sans-serif"
+    plt.rcParams['figure.facecolor'] = 'white'
+
+    no_simi_tc = list(data_show['TC'])
+    sns.distplot(no_simi_tc, rug=True, rug_kws={"color": "g"},
+                 kde_kws={"color": "k", "lw": 3, "label": "KDE"},
+                 hist_kws={"histtype": "step", "linewidth": 3,
+                           "alpha": 1, "color": "g"})
+    ax_5.set_xlabel('TC', fontsize=14, fontname="Arial")
+
+    ax_5.set_title('Tanimoto coefficient between drugs and similar compounds' , fontsize=14, fontname="Arial")
+
+    # Only show ticks on the left and bottom spines
+    ax_5.spines['right'].set_visible(False)
+    ax_5.spines['top'].set_visible(False)
+    ax_5.yaxis.set_ticks_position('left')
+    ax_5.xaxis.set_ticks_position('bottom')
+    ax_5.tick_params(axis='x', labelsize=14)
+    ax_5.tick_params(axis='y', labelsize=14)
+    plt.tight_layout()
+
+    st.pyplot(fig_5)
+
+with row_6:
+    st.subheader('Score density')
+    # plot the top target selected
+    fig_6, ax_6 = plt.subplots(figsize=(6, 4))
+    sns.set(font='Arial', style="white", context="paper")
+    font = FontProperties()
+    font.set_family('sans-serif')
+    font.set_name('arial')
+    matplotlib.rc('xtick', labelsize=20)
+    matplotlib.rc('ytick', labelsize=20)
+    font = {
+        'weight': 'bold',
+        'size': 14}
+
+    matplotlib.rc('font', **font)
+    matplotlib.rcParams['font.sans-serif'] = "Arial"
+    matplotlib.rcParams['font.family'] = "sans-serif"
+    plt.rcParams['figure.facecolor'] = 'white'
+
+    scores_total = list(data_show['total_score'])
+    sns.distplot(scores_total, rug=True, rug_kws={"color": "g"},
+                 kde_kws={"color": "k", "lw": 3, "label": "KDE"},
+                 hist_kws={"histtype": "step", "linewidth": 3,
+                           "alpha": 1, "color": "g"})
+    ax_6.set_xlabel('Repurposing score', fontsize=14, fontname="Arial")
+
+    ax_6.set_title('The distribution of total repurposing score', fontsize=14, fontname="Arial")
+
+    # Only show ticks on the left and bottom spines
+    ax_6.spines['right'].set_visible(False)
+    ax_6.spines['top'].set_visible(False)
+    ax_6.yaxis.set_ticks_position('left')
+    ax_6.xaxis.set_ticks_position('bottom')
+    ax_6.tick_params(axis='x', labelsize=14)
+    ax_6.tick_params(axis='y', labelsize=14)
+    plt.tight_layout()
+
+    st.pyplot(fig_6)
 
 # plot 3 D score distribution
 st.write('')
 
-st.subheader('The drug repurposing score')
-fig_3 = px.scatter_3d(data_show, x='TC',
+st.subheader('3D box for drug repurposing score')
+fig_7 = px.scatter_3d(data_show,
+                      x='TC',
                         y='OPTS',
                         z='Disease Distance',
                         color='Drug Name',
                         hover_data=['Drug Name', 'Compound', 'total_score'],
                         size = 'total_score',
-                         opacity=0.6
+                         opacity=0.8
 
 )
 
-st.plotly_chart(fig_3)
+st.plotly_chart(fig_7)
+
+
+# plot the feature similarity tsne  between drugs and compounds
+
+inchikey_s = list(data_show['Drug Inchikey'].unique()) + list(data_show['Compound'].unique())
+
+feature_vector_selected = feature_vector[feature_vector['inchikey'].isin(inchikey_s)]
+feature_vector_selected['size'] = 1.0
+
+st.write('')
+
+st.subheader('The TSNE plot between drug-compound')
+
+plt.figure(figsize=(6, 6))
+
+figure_8 = px.scatter(feature_vector_selected,
+                        x='X',
+                        y='Y',
+                        color='source',
+                        size='size',
+                        hover_data=['inchikey'],
+                        size_max=20,
+                         opacity=0.8)
+
+figure_8.update_layout({'plot_bgcolor': 'rgb(255, 255, 255)',
+                  'paper_bgcolor': 'rgb(255, 255, 255)'})
+st.plotly_chart(figure_8)
+
+# p1 = sns.scatterplot(x="X", y="Y",
+#                 hue='source',
+#                 legend='full',
+#                 data=feature_vector_selected,
+#                      alpha=0.2,
+#                      sizes=(500, 300))
+
+#add annotations one by one with a loop
+
+# for line in range(0, feature_vector_selected.shape[0]):
+#     p1.text(feature_vector_selected.X[line] + 0.2,
+#             feature_vector_selected.Y[line],
+#             feature_vector_selected.inchikey[line],
+#             horizontalalignment='left',
+#             size='medium',
+#             color='black',
+#             weight='semibold')
+
+# p1.update_layout({'plot_bgcolor': 'rgba(0, 0, 0, 0)',
+#                   'paper_bgcolor': 'rgba(0, 0, 0, 0)', })
+# st.plotly_chart(p1)
 
 
 
-# plot top target, top compounds inchikey
 
