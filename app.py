@@ -15,6 +15,12 @@ import collections
 from collections import Counter
 from data import dataset
 
+#from matplotlib.backends.backend_agg import RendererAgg
+#_lock = RendererAgg.lock
+
+# -- Set page config
+apptitle = 'Drugpro'
+st.set_page_config(page_title=apptitle, page_icon=':pill:')
 
 # Title the app
 st.title('DrugRepo')
@@ -41,10 +47,10 @@ disease_name_id_dict = dict(zip(data['Disease Name'], data['Disease ID']))
 
 # add description for our website
 st.markdown("""
- DrugRepo is computational pipeline to repurpose drugs for new indications. 
+ DrugRepo is a computational pipeline to repurpose drugs for new indications. 
  The repurposing pipeline has various steps including: Compound-target data analysis, structural analysis, gene-disease 
- relationships and pathway analysis. Pipeline is able to repurpose ~0.8. million compounds across 674 diseases 
- (including various cancers, cardiovascular and kidney diseases)
+ relationships and pathway analysis. The pipeline is able to repurpose ~0.8. million compounds across 674 diseases 
+ (including various cancers, cardiovascular and kidney diseases).
 """)
 
 # show some conceptual figure for work flow
@@ -176,18 +182,44 @@ with row_2:
     st.pyplot(fig_2)
 
 
-# decide the unique selective disease
-Sorted_Disease = data['Disease Name'].unique()
+#### code for multitabs: Table, Graph, still need to be corrected
+st.markdown(
+    '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">',
+    unsafe_allow_html=True,
+)
+query_params = st.experimental_get_query_params()
+tabs = ["Table", "Graph"]
+if "tab" in query_params:
+    active_tab = query_params["tab"][0]
+else:
+    active_tab = "Table"
 
-# add the box for disease selection
-st.markdown("### **Select Disease:**")
+if active_tab not in tabs:
+    st.experimental_set_query_params(tab="Table")
+    active_tab = "Table"
 
-select_disease = st.selectbox('', Sorted_Disease)
+li_items = "".join(
+    f"""
+    <li class="nav-item">
+        <a class="nav-link{' active' if t==active_tab else ''}" href="/?tab={t}">{t}</a>
+    </li>
+    """
+    for t in tabs
+)
+tabs_html = f"""
+    <ul class="nav nav-tabs">
+    {li_items}
+    </ul>
+"""
 
-select_disease_id = disease_name_id_dict.get(select_disease)
+st.markdown(tabs_html, unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
+#####
 
-# first read feature vector for sleected disease for next TSNE PLOT
-feature_vector = pd.read_csv('data/result_stored/{}/feature_vector.csv'.format(select_disease_id))
+##### rosan
+st.subheader('Table')
+inputs_disease = {}
+inputs_drug = {}
 
 @st.cache
 def get_seperate_disease_data(select_disease):
@@ -195,15 +227,64 @@ def get_seperate_disease_data(select_disease):
     data_table = data[data['Disease Name'].isin([select_disease])]
     return data_table
 
+def get_seperate_drug_data(select_drug):
+    # accept the result data of selected drug
+    data_table = data[data['Drug Name'].isin(select_drug)]
+    return data_table
 
-# show result table of selected disease
-data_table = get_seperate_disease_data(select_disease)
+# decide the unique selective disease and drug
+Sorted_Disease = data['Disease Name'].unique()
+Sorted_Drug = data['Drug Name'].unique()
 
-# filter by tc, set default is 0.5 1
-min_tc, max_tc = st.slider('Select a range of TC', min_value=0.2, max_value=1.0, step=0.1, value=(0.5, 0.9))
+# create sidebar on the left
+with st.sidebar:
+    st.write('## Select the disease:')
+    #for disease in Sorted_Disease:
+        #inputs_disease[disease] = st.checkbox(disease)
+    select_disease = st.selectbox('', Sorted_Disease)
+    
+    st.write('## Select the drugs:')
+    if st.checkbox('SELECT ALL'):
+        for drug in Sorted_Drug:
+            inputs_drug[drug] = st.checkbox(drug, value=True)
+    else:
+        for drug in Sorted_Drug:
+            inputs_drug[drug] = st.checkbox(drug)
+    
 
-# filter by total score, set default is 0.5-1
-min_score, max_score = st.slider(f'Select a range of score', min_value=0.0, max_value=1.0, step=0.1, value=(0.5, 1.0))
+    # filter by tc, set default is 0.5 1
+    st.write('## Select a range of TC:')
+    min_tc, max_tc = st.slider('', min_value=0.2, max_value=1.0, step=0.1, value=(0.5, 0.9))
+
+    # filter by total score, set default is 0.5-1
+    st.write('## Select a range of score:')
+    min_score, max_score = st.slider(f'', min_value=0.0, max_value=1.0, step=0.1, value=(0.5, 1.0))
+
+# create an arr of all the drugs selected
+drugs=[]
+for key, value in inputs_drug.items():
+    if True == value:
+        drugs.append(key)
+
+# merge table by selected disease and drugs
+data_table1 = get_seperate_disease_data(select_disease)
+data_table2 = get_seperate_drug_data(drugs)
+data_table = pd.merge(data_table1, data_table2, how='inner')
+#st.dataframe(data_table)
+
+##### rosan
+
+
+select_disease_id = disease_name_id_dict.get(select_disease)
+
+# # first read feature vector for sleected disease for next TSNE PLOT
+feature_vector = pd.read_csv('data/result_stored/{}/feature_vector.csv'.format(select_disease_id))
+
+# # filter by tc, set default is 0.5 1
+# min_tc, max_tc = st.slider('Select a range of TC', min_value=0.2, max_value=1.0, step=0.1, value=(0.5, 0.9))
+
+# # filter by total score, set default is 0.5-1
+# min_score, max_score = st.slider(f'Select a range of score', min_value=0.0, max_value=1.0, step=0.1, value=(0.5, 1.0))
 
 #based on the tc and total score select data
 data_show = data_table[(data_table['TC']>= min_tc) &
@@ -219,7 +300,8 @@ common_target_count = prepare_drug_tareget_piars(list(data_show['Drug Inchikey']
 
 
 # show then selected result table on app
-st.dataframe(data_show)
+if active_tab == 'Table':
+    st.dataframe(data_show)
 
 # plot most top target for drugs on app, the top compound on the left, left:right = 1:2
 st.write('')
